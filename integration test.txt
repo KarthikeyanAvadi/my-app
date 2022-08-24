@@ -1,0 +1,40 @@
+node{
+     
+    stage('SCM Checkout'){
+        git url: 'https://github.com/KarthikeyanAvadi/java-web-app-docker.git',branch: 'master'
+    }
+    
+    stage("Maven Clean Package"){
+      def mavenHome = tool name: "Maven", type: "maven"
+      def mavenCMD = "${mavenHome}/bin/mvn"
+      sh "${mavenCMD} clean package"
+      
+    } 
+    
+    
+    stage('Build Docker Image'){
+        sh 'docker build -t karthikeyan96/java-web-app .'
+    }
+    
+    stage('Push Docker Image'){
+        withCredentials([string(credentialsId: 'dockerpassword', variable: 'dockerpassword')]) {
+          sh "docker login -u karthikeyan96 -p ${dockerpassword}"
+        }
+        sh 'docker push karthikeyan96/java-web-app'
+     }
+     
+      stage('Run Docker Image In Dev Server'){
+        
+       def dockerRun = 'docker run -d -p 8080:8080 --name java-web-app karthikeyan96/java-web-app'    
+         
+         sshagent(['docker_password']) {
+          sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.4.142 docker stop java-web-app || true'
+          sh 'ssh  ubuntu@172.31.4.142 docker rm java-web-app || true'
+          sh 'ssh  ubuntu@172.31.4.142 docker rmi -f  $(docker images -q) || true'
+          sh "ssh  ubuntu@172.31.4.142 ${dockerRun}"
+       }
+       
+    }
+     
+     
+}
